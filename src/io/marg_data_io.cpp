@@ -40,26 +40,34 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace basalt {
 
-MargDataSaver::MargDataSaver(const std::string& path, const bool save_keyframe_data, const basalt::Calibration<double> calib) {
-  fs::remove_all(path);
-  fs::create_directory(path);
+MargDataSaver::MargDataSaver(const std::string& marg_data_path, const std::string& keyframe_data_path, const basalt::Calibration<double> calib) {
+  
+  std::string img_path = marg_data_path + "/images/";
+  if(!marg_data_path.empty())
+  {
+    fs::remove_all(marg_data_path);
+    fs::create_directory(marg_data_path);
+    fs::create_directory(img_path);
+  }
+
+  if(!keyframe_data_path.empty())
+  {
+    fs::remove_all(keyframe_data_path);
+    fs::create_directory(keyframe_data_path);
+  }
 
   save_image_queue.set_capacity(300);
-
-  std::string img_path = path + "/images/";
-  fs::create_directory(img_path);
-
   in_marg_queue.set_capacity(1000);
 
-  auto save_func = [&, path, save_keyframe_data, calib]() {
+  auto save_func = [&, marg_data_path, keyframe_data_path, calib]() {
     basalt::MargData::Ptr data;
 
     std::unordered_set<int64_t> processed_opt_flow;
 
-    std::string poses_path = path + "/poses/";
-    std::string keypoints_path = path + "/keypoints/";
+    std::string poses_path = keyframe_data_path + "/poses/";
+    std::string keypoints_path = keyframe_data_path + "/keypoints/";
 
-    if(save_keyframe_data){
+    if(!keyframe_data_path.empty()){
       fs::create_directory(poses_path);
       fs::create_directory(keypoints_path);
     }
@@ -76,16 +84,26 @@ MargDataSaver::MargDataSaver(const std::string& path, const bool save_keyframe_d
       if (data.get()) {
         int64_t kf_id = *data->kfs_to_marg.begin();
 
-        std::string p = path + "/" + std::to_string(kf_id) + ".cereal";
-        std::ofstream os(p, std::ios::binary);
-
+        if(!marg_data_path.empty())
         {
-          cereal::BinaryOutputArchive archive(os);
-          archive(*data);
-        }
-        os.close();
+          std::string p = marg_data_path + "/" + std::to_string(kf_id) + ".cereal";
+          std::ofstream os(p, std::ios::binary);
 
-        if(save_keyframe_data){
+          {
+            cereal::BinaryOutputArchive archive(os);
+            archive(*data);
+          }
+          os.close();
+
+          for (const auto& d : data->opt_flow_res) {
+            if (processed_opt_flow.count(d->t_ns) == 0) {
+              save_image_queue.push(d);
+              processed_opt_flow.emplace(d->t_ns);
+            }
+          }
+        }
+
+        if(!keyframe_data_path.empty()){
           
           // save poses in imu frame and cam frame
           for(auto it=data->frame_poses.cbegin(); it!=data->frame_poses.cend(); ++it){
@@ -124,25 +142,19 @@ MargDataSaver::MargDataSaver(const std::string& path, const bool save_keyframe_d
           }
           fw_keypoints.close();
         }
-
-        for (const auto& d : data->opt_flow_res) {
-          if (processed_opt_flow.count(d->t_ns) == 0) {
-            save_image_queue.push(d);
-            processed_opt_flow.emplace(d->t_ns);
-          }
-        }
-
       } else {
         save_image_queue.push(nullptr);
         break;
       }
     }
 
-    if(save_keyframe_data){
+    if(!keyframe_data_path.empty()){
       fw_poses_cam.close();
       fw_poses_imu.close();
+      std::cout << "Finished KeyframeDataSaver" << std::endl;
     }
-    std::cout << "Finished MargDataSaver" << std::endl;
+    if(!marg_data_path.empty())
+      std::cout << "Finished MargDataSaver" << std::endl;
   };
 
   auto save_image_func = [&, img_path]() {
@@ -164,8 +176,8 @@ MargDataSaver::MargDataSaver(const std::string& path, const bool save_keyframe_d
         break;
       }
     }
-
-    std::cout << "Finished image MargDataSaver" << std::endl;
+    if(!marg_data_path.empty())
+      std::cout << "Finished image MargDataSaver" << std::endl;
   };
 
   saving_thread.reset(new std::thread(save_func));
