@@ -114,14 +114,16 @@ void SqrtKeypointVoEstimator<Scalar_>::initialize(
   marg_data.order.total_size = POSE_SIZE;
   marg_data.order.items = 1;
 
-  initialize(bg, ba);
+  initialize(bg, ba, NULL);
 }
 
 template <class Scalar_>
 void SqrtKeypointVoEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg,
-                                                  const Eigen::Vector3d& ba) {
+                                                  const Eigen::Vector3d& ba,
+                                                  const std::string kp_path) {
   UNUSED(bg);
   UNUSED(ba);
+  UNUSED(kp_path);
 
   auto proc_func = [&] {
     OpticalFlowResult::Ptr prev_frame, curr_frame;

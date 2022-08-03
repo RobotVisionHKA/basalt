@@ -91,7 +91,8 @@ class VioEstimatorBase {
                           const Eigen::Vector3d& ba) = 0;
 
   virtual void initialize(const Eigen::Vector3d& bg,
-                          const Eigen::Vector3d& ba) = 0;
+                          const Eigen::Vector3d& ba,
+                          const std::string kp_path) = 0;
 
   virtual void maybe_join() = 0;
 

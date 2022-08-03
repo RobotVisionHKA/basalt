@@ -94,7 +94,8 @@ class SqrtKeypointVoEstimator : public VioEstimatorBase,
                   const Eigen::Vector3d& ba) override;
 
   void initialize(const Eigen::Vector3d& bg,
-                  const Eigen::Vector3d& ba) override;
+                  const Eigen::Vector3d& ba,
+                  const std::string kp_path) override;
 
   virtual ~SqrtKeypointVoEstimator() { maybe_join(); }
 

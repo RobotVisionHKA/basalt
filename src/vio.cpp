@@ -303,14 +303,18 @@ int main(int argc, char** argv) {
     }
   }
 
+  std::string kp_path;
+  if(!keyframe_data_path.empty())
+    kp_path = keyframe_data_path + "/keypoints_viz/";
+
   const int64_t start_t_ns = vio_dataset->get_image_timestamps().front();
   {
     vio = basalt::VioEstimatorFactory::getVioEstimator(
         vio_config, calib, basalt::constants::g, use_imu, use_double);
-    vio->initialize(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+    vio->initialize(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), kp_path);
 
     opt_flow_ptr->output_queue = &vio->vision_data_queue;
-    if (show_gui) vio->out_vis_queue = &out_vis_queue;
+    vio->out_vis_queue = &out_vis_queue;
     vio->out_state_queue = &out_state_queue;
   }
 
@@ -342,22 +346,21 @@ int main(int argc, char** argv) {
 
   std::shared_ptr<std::thread> t3;
 
-  if (show_gui)
-    t3.reset(new std::thread([&]() {
-      basalt::VioVisualizationData::Ptr data;
+  t3.reset(new std::thread([&]() {
+    basalt::VioVisualizationData::Ptr data;
 
-      while (true) {
-        out_vis_queue.pop(data);
+    while (true) {
+      out_vis_queue.pop(data);
 
-        if (data.get()) {
-          vis_map[data->t_ns] = data;
-        } else {
-          break;
-        }
+      if (data.get()) {
+        vis_map[data->t_ns] = data;
+      } else {
+        break;
       }
+    }
 
-      std::cout << "Finished t3" << std::endl;
-    }));
+    std::cout << "Finished t3" << std::endl;
+  }));
 
   std::thread t4([&]() {
     basalt::PoseVelBiasState<double>::Ptr data;

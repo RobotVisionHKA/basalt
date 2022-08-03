@@ -98,7 +98,8 @@ class SqrtKeypointVioEstimator : public VioEstimatorBase,
                   const Eigen::Vector3d& ba) override;
 
   void initialize(const Eigen::Vector3d& bg,
-                  const Eigen::Vector3d& ba) override;
+                  const Eigen::Vector3d& ba,
+                  const std::string kp_path) override;
 
   virtual ~SqrtKeypointVioEstimator() { maybe_join(); }
 
@@ -115,7 +116,8 @@ class SqrtKeypointVioEstimator : public VioEstimatorBase,
   typename ImuData<Scalar>::Ptr popFromImuDataQueue();
 
   bool measure(const OpticalFlowResult::Ptr& opt_flow_meas,
-               const typename IntegratedImuMeasurement<Scalar>::Ptr& meas);
+               const typename IntegratedImuMeasurement<Scalar>::Ptr& meas,
+               const std::string kp_path);
 
   // int64_t propagate();
   // void addNewState(int64_t data_t_ns);
