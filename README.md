@@ -2,8 +2,7 @@
 
 This repository contains a clone of the [Basalt](https://gitlab.com/VladyslavUsenko/basalt) repository with changes made on top so that it can be used as a VIO system for the dense MVS reconstruction network [MonoRec](https://github.com/Brummi/MonoRec).
 
-## Installation (from source)
---- 
+## Installation (from source) 
 ```sh  
 git clone --recursive https://github.com/RobotVisionHKA/VisualInertialOdometry.git
 cd VisualInertialOdometry
@@ -14,8 +13,7 @@ cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -j8
 ```  
 
-## Changes to original package: 
---- 
+## Changes to original package:  
 The primary target in order to make Basalt compatible with MonoRec was to extract the keyframe poses (for both training and inference) and also the tracked keypoints in the keyframes (for the sparse depth supervised loss in MonoRec, only for training).  
 Here are the changes that were made on top of the existing Basalt code:  
 1. A '```keyframe_data_path```' flag is added, which when valid saves the poses and keypoints in the following directory structure:  
@@ -74,7 +72,6 @@ Here are the changes that were made on top of the existing Basalt code:
     - change data structure of ```MargDataPtr``` for saving keypoints  
 
 ## Running VIO:  
----
 
 Create a new folder_run_ in the parent directory and run VIO from this folder to save all the stats there, but not compulsory. However, the command below assumes that VIO is being executed from the _VisualInertialOdometry/run_ folder. 
 ```sh
