@@ -14,7 +14,8 @@ cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -j8
 ```  
 
-## Changes to original package:  
+## Changes to original package: 
+--- 
 The primary target in order to make Basalt compatible with MonoRec was to extract the keyframe poses (for both training and inference) and also the tracked keypoints in the keyframes (for the sparse depth supervised loss in MonoRec, only for training).  
 Here are the changes that were made on top of the existing Basalt code:  
 1. A '```keyframe_data_path```' flag is added, which when valid saves the poses and keypoints in the following directory structure:  
@@ -49,25 +50,68 @@ Here are the changes that were made on top of the existing Basalt code:
 5. For saving keypoints from the visualization queue, whenever data is pushed into the viz_queue, keypoints are directly saved if the 'keyframe_data_path' is valid. Done in the [sqrt_keypoint_vio.cpp](src/vi_estimator/sqrt_keypoint_vio.cpp) file.    
 
 ### Changed files:  
-1. vio.cpp
+1. [vio.cpp](src/vio.cpp)
     - add flag for saving keyframe_data
     - change call to ```MargDataSaver```. add arguments - ```keyframe_data_path``` and calib data  
     - change call to initilize vio estimator. add argument - ```keyframe_data_path```  
  
-2. vio_sim.cpp  
+2. [vio_sim.cpp](src/vio_sim.cpp)  
     - change call to ```MargDataSaver```. add arguments - ```keyframe_data_path``` and calib data   
 
-3. marg_data_io.cpp and marg_data_io.h
+3. [marg_data_io.cpp](src/io/marg_data_io.cpp) and [marg_data_io.h](include/basalt/io/marg_data_io.h)
     - save poses from the margdata queue
     - save keypoints in cam frame (if '```keyframe_data_path```' is valid)
     - save keypoints in imu frame (if '```keyframe_data_path```' is valid)  
 
-4. sqrt_keypoint_vio.cpp and sqrt_keypoint_vio.h
+4. [sqrt_keypoint_vio.cpp](src/vi_estimator/sqrt_keypoint_vio.cpp) and [sqrt_keypoint_vio.h](include/basalt/vi_estimator/sqrt_keypoint_vio.h)
     - compute and add keypoint information when data is being pushed into the margdata queue
     - save keypoints directly before pushing into the viz_queue (if '```keyframe_data_path```' is valid)  
 
-5. sqrt_keypoint_vo.cpp and sqrt_keypoint_vo.h and vio_estimator.h 
+5. [sqrt_keypoint_vo.cpp](src/vi_estimator/sqrt_keypoint_vo.cpp) and [sqrt_keypoint_vo.h](include/basalt/vi_estimator/sqrt_keypoint_vo.h) and [vio_estimator.h](include/basalt/vi_estimator/vio_estimator.h) 
     - change function definitions. add argument - ```keyframe_data_path```
 
-6. imu_types.h  
-    - change data structure of ```MargDataPtr``` for saving keypoints
+6. [imu_types.h](include/basalt/utils/imu_types.h)  
+    - change data structure of ```MargDataPtr``` for saving keypoints  
+
+## Running VIO:  
+---
+
+Create a new folder_run_ in the parent directory and run VIO from this folder to save all the stats there, but not compulsory. However, the command below assumes that VIO is being executed from the _VisualInertialOdometry/run_ folder. 
+```sh
+mkdir run
+cd run
+```  
+
+Running VIO:  
+```sh
+App description
+Usage: ../build/basalt_vio [OPTIONS]
+
+Options:
+  -h,--help                   Print this help message and exit
+  --show-gui BOOLEAN          Show GUI
+  --cam-calib TEXT REQUIRED   Ground-truth camera calibration used for simulation.
+  --dataset-path TEXT REQUIRED
+                              Path to dataset.
+  --dataset-type TEXT REQUIRED
+                              Dataset type <euroc, bag>.
+  --marg-data TEXT            Path to folder where marginalization data will be stored.
+  --print-queue BOOLEAN       Print queue.
+  --config-path TEXT          Path to config file.
+  --result-path TEXT          Path to result file where the system will write RMSE ATE.
+  --num-threads INT           Number of threads.
+  --step-by-step BOOLEAN      Path to config file.
+  --save-trajectory TEXT      Save trajectory. Supported formats <tum, euroc, kitti>
+  --save-groundtruth BOOLEAN  In addition to trajectory, save also ground turth
+  --use-imu BOOLEAN           Use IMU.
+  --keyframe-data TEXT        Path for saving keyframe poses and keypoints.
+  --use-double BOOLEAN        Use double not float.
+  --max-frames UINT           Limit number of frames to process from dataset (0 means unlimited)
+```
+
+E.g.
+```sh
+../build/basalt_vio --dataset-path ../../tumvi_data/test --cam-calib ../../DenseReconstruction/basalt/data/test_1024_cropped.json --dataset-type euroc --config-path ../../DenseReconstruction/basalt/data/tumvi_512_config.json --marg-data ../../tumvi_data/test/temp_keyframe_data --show-gui 1 --keyframe-data ../../tumvi_data/test/kf_data --use-imu 1
+```  
+
+****_the keyframe_data_path must point to the _basalt_keyframe_data_ folder within the parent directory of the dataset sequence for MonoRec to be compatible i.e. able to read the poses and keypoints. That is how the dataloader is implemented_**
