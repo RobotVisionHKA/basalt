@@ -45,7 +45,8 @@ class MargDataSaver {
  public:
   using Ptr = std::shared_ptr<MargDataSaver>;
 
-  MargDataSaver(const std::string& path);
+  // path to marg data directory, path to saving keyframe poses and keypoints, camera calib data
+  MargDataSaver(const std::string& marg_data_path, const std::string& keyframe_data_path, const basalt::Calibration<double> calib);
   ~MargDataSaver() {
     saving_thread->join();
     saving_img_thread->join();

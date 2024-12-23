@@ -47,6 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <basalt/linearization/linearization_base.hpp>
 
 #include <fmt/format.h>
+#include <basalt/utils/filesystem.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -144,16 +145,14 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(
 
   nullspace_marg_data.order = marg_data.order;
 
-  initialize(bg, ba);
+  initialize(bg, ba, NULL);
 }
 
 template <class Scalar_>
 void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
-                                                   const Eigen::Vector3d& ba_) {
-  Vec3 bg_init = bg_.cast<Scalar>();
-  Vec3 ba_init = ba_.cast<Scalar>();
-
-  auto proc_func = [&, bg = bg_init, ba = ba_init] {
+                                                   const Eigen::Vector3d& ba_,
+                                                   const std::string kp_path) {
+  auto proc_func = [&, bg = bg_.cast<Scalar>(), ba = ba_.cast<Scalar>(), kp_path] {
     OpticalFlowResult::Ptr prev_frame, curr_frame;
     typename IntegratedImuMeasurement<Scalar>::Ptr meas;
 
@@ -166,6 +165,9 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
 
     data->accel = calib.calib_accel_bias.getCalibrated(data->accel);
     data->gyro = calib.calib_gyro_bias.getCalibrated(data->gyro);
+
+    if(!kp_path.empty())
+      fs::create_directory(kp_path);
 
     while (true) {
       vision_data_queue.pop(curr_frame);
@@ -256,7 +258,7 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
         }
       }
 
-      measure(curr_frame, meas);
+      measure(curr_frame, meas, kp_path);
       prev_frame = curr_frame;
     }
 
@@ -305,7 +307,8 @@ SqrtKeypointVioEstimator<Scalar_>::popFromImuDataQueue() {
 template <class Scalar_>
 bool SqrtKeypointVioEstimator<Scalar_>::measure(
     const OpticalFlowResult::Ptr& opt_flow_meas,
-    const typename IntegratedImuMeasurement<Scalar>::Ptr& meas) {
+    const typename IntegratedImuMeasurement<Scalar>::Ptr& meas,
+    const std::string kp_path) {
   stats_sums_.add("frame_id", opt_flow_meas->t_ns).format("none");
   Timer t_total;
 
@@ -510,6 +513,19 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
 
     data->projections.resize(opt_flow_meas->observations.size());
     computeProjections(data->projections, last_state_t_ns);
+
+    // Save keyframe keypoints
+    if(!kp_path.empty())
+    {  
+      const auto& points = data->projections[0];
+      std::ofstream fw_keypoints(kp_path + std::to_string(data->t_ns) + ".txt", std::ofstream::out);
+
+      fw_keypoints << points.size() << std::endl;
+      for (const auto& c : points)
+        fw_keypoints << c[0] << " " << c[1] << " " << c[2] << std::endl;
+        
+      fw_keypoints.close();
+    }
 
     data->opt_flow_res = prev_opt_flow_res[last_state_t_ns];
 
@@ -775,6 +791,14 @@ void SqrtKeypointVioEstimator<Scalar_>::marginalize(
 
         for (int64_t t : m->kfs_all) {
           m->opt_flow_res.emplace_back(prev_opt_flow_res.at(t));
+        }
+
+        // add keypoints from each frame(total 8) to MargDataPtr 
+        for (int64_t t : m->kfs_all) {
+          std::vector<Eigen::aligned_vector<Eigen::Vector4d>> projections;
+          projections.resize(prev_opt_flow_res.at(t)->observations.size());
+          computeProjections(projections, t);
+          m->frame_keypoints.insert({t, projections});
         }
 
         out_marg_queue->push(m);

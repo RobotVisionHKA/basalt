@@ -138,6 +138,7 @@ std::vector<int64_t> gt_t_ns;
 Eigen::aligned_vector<Eigen::Vector3d> gt_t_w_i;
 
 std::string marg_data_path;
+std::string keyframe_data_path;
 size_t last_frame_processed = 0;
 
 tbb::concurrent_unordered_map<int64_t, int, std::hash<int64_t>> timestamp_to_id;
@@ -246,6 +247,7 @@ int main(int argc, char** argv) {
   app.add_option("--save-groundtruth", trajectory_groundtruth,
                  "In addition to trajectory, save also ground turth");
   app.add_option("--use-imu", use_imu, "Use IMU.");
+  app.add_option("--keyframe-data", keyframe_data_path, "Path for saving keyframe poses and keypoints.");
   app.add_option("--use-double", use_double, "Use double not float.");
   app.add_option(
       "--max-frames", max_frames,
@@ -301,24 +303,29 @@ int main(int argc, char** argv) {
     }
   }
 
+  std::string kp_path;
+  if(!keyframe_data_path.empty())
+    kp_path = keyframe_data_path + "/keypoints_viz/";
+
   const int64_t start_t_ns = vio_dataset->get_image_timestamps().front();
   {
     vio = basalt::VioEstimatorFactory::getVioEstimator(
         vio_config, calib, basalt::constants::g, use_imu, use_double);
-    vio->initialize(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+    vio->initialize(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), kp_path);
 
     opt_flow_ptr->output_queue = &vio->vision_data_queue;
-    if (show_gui) vio->out_vis_queue = &out_vis_queue;
+    vio->out_vis_queue = &out_vis_queue;
     vio->out_state_queue = &out_state_queue;
   }
 
   basalt::MargDataSaver::Ptr marg_data_saver;
 
-  if (!marg_data_path.empty()) {
-    marg_data_saver.reset(new basalt::MargDataSaver(marg_data_path));
+  if (!marg_data_path.empty() || !keyframe_data_path.empty()) {
+    marg_data_saver.reset(new basalt::MargDataSaver(marg_data_path, keyframe_data_path, calib));
     vio->out_marg_queue = &marg_data_saver->in_marg_queue;
 
     // Save gt.
+    if (!marg_data_path.empty())
     {
       std::string p = marg_data_path + "/gt.cereal";
       std::ofstream os(p, std::ios::binary);
@@ -339,22 +346,21 @@ int main(int argc, char** argv) {
 
   std::shared_ptr<std::thread> t3;
 
-  if (show_gui)
-    t3.reset(new std::thread([&]() {
-      basalt::VioVisualizationData::Ptr data;
+  t3.reset(new std::thread([&]() {
+    basalt::VioVisualizationData::Ptr data;
 
-      while (true) {
-        out_vis_queue.pop(data);
+    while (true) {
+      out_vis_queue.pop(data);
 
-        if (data.get()) {
-          vis_map[data->t_ns] = data;
-        } else {
-          break;
-        }
+      if (data.get()) {
+        vis_map[data->t_ns] = data;
+      } else {
+        break;
       }
+    }
 
-      std::cout << "Finished t3" << std::endl;
-    }));
+    std::cout << "Finished t3" << std::endl;
+  }));
 
   std::thread t4([&]() {
     basalt::PoseVelBiasState<double>::Ptr data;

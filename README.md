@@ -1,75 +1,114 @@
-[![pipeline status](https://gitlab.com/VladyslavUsenko/basalt/badges/master/pipeline.svg)](https://gitlab.com/VladyslavUsenko/basalt/commits/master)
+# VisualInertialOdometry  
 
-## Basalt
-For more information see https://vision.in.tum.de/research/vslam/basalt
+This repository contains a clone of the [Basalt](https://gitlab.com/VladyslavUsenko/basalt) repository with changes made on top so that it can be used as a VIO system for the dense MVS reconstruction network [MonoRec](https://github.com/Brummi/MonoRec).
 
-![teaser](doc/img/teaser.png)
-
-This project contains tools for:
-* Camera, IMU and motion capture calibration.
-* Visual-inertial odometry and mapping.
-* Simulated environment to test different components of the system.
-
-Some reusable components of the system are available as a separate [header-only library](https://gitlab.com/VladyslavUsenko/basalt-headers) ([Documentation](https://vladyslavusenko.gitlab.io/basalt-headers/)).
-
-There is also a [Github mirror](https://github.com/VladyslavUsenko/basalt-mirror) of this project to enable easy forking.
-
-## Related Publications
-Visual-Inertial Odometry and Mapping:
-* **Visual-Inertial Mapping with Non-Linear Factor Recovery**, V. Usenko, N. Demmel, D. Schubert, J. Stückler, D. Cremers, In IEEE Robotics and Automation Letters (RA-L) [[DOI:10.1109/LRA.2019.2961227]](https://doi.org/10.1109/LRA.2019.2961227) [[arXiv:1904.06504]](https://arxiv.org/abs/1904.06504).
-
-Calibration (explains implemented camera models):
-* **The Double Sphere Camera Model**, V. Usenko and N. Demmel and D. Cremers, In 2018 International Conference on 3D Vision (3DV), [[DOI:10.1109/3DV.2018.00069]](https://doi.org/10.1109/3DV.2018.00069), [[arXiv:1807.08957]](https://arxiv.org/abs/1807.08957).
-
-Calibration (demonstrates how these tools can be used for dataset calibration):
-* **The TUM VI Benchmark for Evaluating Visual-Inertial Odometry**, D. Schubert, T. Goll,  N. Demmel, V. Usenko, J. Stückler, D. Cremers, In 2018 International Conference on Intelligent Robots and Systems (IROS), [[DOI:10.1109/IROS.2018.8593419]](https://doi.org/10.1109/IROS.2018.8593419), [[arXiv:1804.06120]](https://arxiv.org/abs/1804.06120).
-
-Calibration (describes B-spline trajectory representation used in camera-IMU calibration):
-* **Efficient Derivative Computation for Cumulative B-Splines on Lie Groups**, C. Sommer, V. Usenko, D. Schubert, N. Demmel, D. Cremers, In 2020 Conference on Computer Vision and Pattern Recognition (CVPR), [[DOI:10.1109/CVPR42600.2020.01116]](https://doi.org/10.1109/CVPR42600.2020.01116), [[arXiv:1911.08860]](https://arxiv.org/abs/1911.08860).
-
-Optimization (describes square-root optimization and marginalization used in VIO/VO):
-* **Square Root Marginalization for Sliding-Window Bundle Adjustment**, N. Demmel, D. Schubert, C. Sommer, D. Cremers, V. Usenko, In 2021 International Conference on Computer Vision (ICCV), [[arXiv:2109.02182]](https://arxiv.org/abs/2109.02182)
-
-
-## Installation
-### APT installation for Ubuntu 22.04, 20.04 and 18.04 (Fast)
-Set up keys, add the repository to the sources list, update the Ubuntu package index and install Basalt:
-```
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0AD9A3000D97B6C9
-sudo sh -c 'echo "deb [arch=amd64] http://packages.usenko.net/ubuntu $(lsb_release -sc) $(lsb_release -sc)/main" > /etc/apt/sources.list.d/basalt.list'
-sudo apt-get update
-sudo apt-get dist-upgrade
-sudo apt-get install basalt
-```
-
-### Source installation for Ubuntu >= 18.04 and MacOS >= 10.14 Mojave
-Clone the source code for the project and build it. For MacOS you should have [Homebrew](https://brew.sh/) installed.
-```
-git clone --recursive https://gitlab.com/VladyslavUsenko/basalt.git
-cd basalt
+## Installation (from source) 
+```sh  
+git clone --recursive https://github.com/RobotVisionHKA/VisualInertialOdometry.git
+cd VisualInertialOdometry
 ./scripts/install_deps.sh
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -j8
+```  
+
+## Changes to original package:  
+The primary target in order to make Basalt compatible with MonoRec was to extract the keyframe poses (for both training and inference) and also the tracked keypoints in the keyframes (for the sparse depth supervised loss in MonoRec, only for training).  
+Here are the changes that were made on top of the existing Basalt code:  
+1. A '```keyframe_data_path```' flag is added, which when valid saves the poses and keypoints in the following directory structure:  
+    ```  
+    keyframe_data_path
+        ├── keypoints
+        |   ├── ts1.txt
+        |   ├── ts2.txt
+        |   └── ..
+        ├── keypoints_viz
+        |   ├── ts1.txt
+        |   ├── ts2.txt
+        |   └── ..
+        └── poses
+            ├── keyframe_trajectory_cam.txt
+            └── keyframe_trajectory_imu.txt
+    ```
+    - _keypoints_viz_ contains the keypoints saved from the visualization queue.  
+    - _keypoints_ contains the keypoints saved from the marginal data queue. (keypoints are dropped from the optimization window, hence the images in the visualization queue contain more points)  
+    - _poses_ contains two textfiles, _keyframe_trajectory_cam.txt_ which contains poses in the camera frame and _keyframe_trajectory_imu.txt_ which contains poses in imu frame.  
+    **Note:** 
+        - pose format is 'ts(ns) px py pz qx qy qz qw'
+        - keypoints are stored in a separate textfile for each timestamp. The first line contains the no. of keypoints tracked in the frame and subsequently each line contains 'x y inv_depth'.  
+      
+2. The ```MargDataSaver``` has been changed to take additional arguments ```[const string& keyframe_data_path, const basalt::Calibration<double> calib]```. The calibration matrix is required to convert the poses from the imu frame to the camera frame.  
+    **Imp Note: poses in the margdata queue are in the imu frame**  
+
+3. MargData Saver saves keypoints and poses for each timestamp in the MargDataQueue if the 'keyframe_data_path' is valid. There are 7 poses for each window and the one that matches the timestamp is saved.  
+
+4. The ```MargDataPtr``` data structure was changed to save the keypoints as a vector. Whenever data is pushed into the margdata queue, keypoints are computed for the window using optical flow, the ```computeProjections``` function. The computed keypoints are then added to the ```MargDataPtr```.  
+
+5. For saving keypoints from the visualization queue, whenever data is pushed into the viz_queue, keypoints are directly saved if the 'keyframe_data_path' is valid. Done in the [sqrt_keypoint_vio.cpp](src/vi_estimator/sqrt_keypoint_vio.cpp) file.    
+
+### Changed files:  
+1. [vio.cpp](src/vio.cpp)
+    - add flag for saving keyframe_data
+    - change call to ```MargDataSaver```. add arguments - ```keyframe_data_path``` and calib data  
+    - change call to initilize vio estimator. add argument - ```keyframe_data_path```  
+ 
+2. [vio_sim.cpp](src/vio_sim.cpp)  
+    - change call to ```MargDataSaver```. add arguments - ```keyframe_data_path``` and calib data   
+
+3. [marg_data_io.cpp](src/io/marg_data_io.cpp) and [marg_data_io.h](include/basalt/io/marg_data_io.h)
+    - save poses from the margdata queue
+    - save keypoints in cam frame (if '```keyframe_data_path```' is valid)
+    - save keypoints in imu frame (if '```keyframe_data_path```' is valid)  
+
+4. [sqrt_keypoint_vio.cpp](src/vi_estimator/sqrt_keypoint_vio.cpp) and [sqrt_keypoint_vio.h](include/basalt/vi_estimator/sqrt_keypoint_vio.h)
+    - compute and add keypoint information when data is being pushed into the margdata queue
+    - save keypoints directly before pushing into the viz_queue (if '```keyframe_data_path```' is valid)  
+
+5. [sqrt_keypoint_vo.cpp](src/vi_estimator/sqrt_keypoint_vo.cpp) and [sqrt_keypoint_vo.h](include/basalt/vi_estimator/sqrt_keypoint_vo.h) and [vio_estimator.h](include/basalt/vi_estimator/vio_estimator.h) 
+    - change function definitions. add argument - ```keyframe_data_path```
+
+6. [imu_types.h](include/basalt/utils/imu_types.h)  
+    - change data structure of ```MargDataPtr``` for saving keypoints  
+
+## Running VIO:  
+
+Create a new folder_run_ in the parent directory and run VIO from this folder to save all the stats there, but not compulsory. However, the command below assumes that VIO is being executed from the _VisualInertialOdometry/run_ folder. 
+```sh
+mkdir run
+cd run
+```  
+
+Running VIO:  
+```sh
+App description
+Usage: ../build/basalt_vio [OPTIONS]
+
+Options:
+  -h,--help                   Print this help message and exit
+  --show-gui BOOLEAN          Show GUI
+  --cam-calib TEXT REQUIRED   Ground-truth camera calibration used for simulation.
+  --dataset-path TEXT REQUIRED
+                              Path to dataset.
+  --dataset-type TEXT REQUIRED
+                              Dataset type <euroc, bag>.
+  --marg-data TEXT            Path to folder where marginalization data will be stored.
+  --print-queue BOOLEAN       Print queue.
+  --config-path TEXT          Path to config file.
+  --result-path TEXT          Path to result file where the system will write RMSE ATE.
+  --num-threads INT           Number of threads.
+  --step-by-step BOOLEAN      Path to config file.
+  --save-trajectory TEXT      Save trajectory. Supported formats <tum, euroc, kitti>
+  --save-groundtruth BOOLEAN  In addition to trajectory, save also ground turth
+  --use-imu BOOLEAN           Use IMU.
+  --keyframe-data TEXT        Path for saving keyframe poses and keypoints.
+  --use-double BOOLEAN        Use double not float.
+  --max-frames UINT           Limit number of frames to process from dataset (0 means unlimited)
 ```
 
-## Usage
-* [Camera, IMU and Mocap calibration. (TUM-VI, Euroc, UZH-FPV and Kalibr datasets)](doc/Calibration.md)
-* [Visual-inertial odometry and mapping. (TUM-VI and Euroc datasets)](doc/VioMapping.md)
-* [Visual odometry (no IMU). (KITTI dataset)](doc/Vo.md)
-* [Simulation tools to test different components of the system.](doc/Simulation.md)
-* [Batch evaluation tutorial (ICCV'21 experiments)](doc/BatchEvaluation.md)
+E.g.
+```sh
+../build/basalt_vio --dataset-path ../../tumvi_data/test --cam-calib ../../DenseReconstruction/basalt/data/test_1024_cropped.json --dataset-type euroc --config-path ../../DenseReconstruction/basalt/data/tumvi_512_config.json --marg-data ../../tumvi_data/test/temp_keyframe_data --show-gui 1 --keyframe-data ../../tumvi_data/test/kf_data --use-imu 1
+```  
 
-## Device support
-* [Tutorial on Camera-IMU and Motion capture calibration with Realsense T265.](doc/Realsense.md)
-
-## Development
-* [Development environment setup.](doc/DevSetup.md)
-
-## Licence
-The code is provided under a BSD 3-clause license. See the LICENSE file for details.
-Note also the different licenses of thirdparty submodules.
-
-Some improvements are ported back from the fork
-[granite](https://github.com/DLR-RM/granite) (MIT license).
+****_the keyframe_data_path must point to the _basalt_keyframe_data_ folder within the parent directory of the dataset sequence for MonoRec to be compatible i.e. able to read the poses and keypoints. That is how the dataloader is implemented_**
