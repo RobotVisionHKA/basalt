@@ -1,11 +1,11 @@
-# VisualInertialOdometry  
+# Basalt - Visual Inertial Odometry  
 
 This repository contains a clone of the [Basalt](https://gitlab.com/VladyslavUsenko/basalt) repository with changes made on top so that it can be used as a VIO system for the dense MVS reconstruction network [MonoRec](https://github.com/Brummi/MonoRec).
 
 ## Installation (from source) 
 ```sh  
-git clone --recursive https://github.com/RobotVisionHKA/VisualInertialOdometry.git
-cd VisualInertialOdometry
+git clone --recursive https://github.com/RobotVisionHKA/basalt.git
+cd basalt
 ./scripts/install_deps.sh
 mkdir build
 cd build
@@ -73,7 +73,7 @@ Here are the changes that were made on top of the existing Basalt code:
 
 ## Running VIO:  
 
-Create a new folder_run_ in the parent directory and run VIO from this folder to save all the stats there, but not compulsory. However, the command below assumes that VIO is being executed from the _VisualInertialOdometry/run_ folder. 
+Create a new folder_run_ in the parent directory and run VIO from this folder to save all the stats there, but not compulsory. However, the command below assumes that VIO is being executed from the _basalt/run_ folder. 
 ```sh
 mkdir run
 cd run
@@ -111,4 +111,4 @@ E.g.
 ../build/basalt_vio --dataset-path ../../tumvi_data/test --cam-calib ../../DenseReconstruction/basalt/data/test_1024_cropped.json --dataset-type euroc --config-path ../../DenseReconstruction/basalt/data/tumvi_512_config.json --marg-data ../../tumvi_data/test/temp_keyframe_data --show-gui 1 --keyframe-data ../../tumvi_data/test/kf_data --use-imu 1
 ```  
 
-****_the keyframe_data_path must point to the _basalt_keyframe_data_ folder within the parent directory of the dataset sequence for MonoRec to be compatible i.e. able to read the poses and keypoints. That is how the dataloader is implemented_**
+****_the keyframe_data_path must point to the _basalt_keyframe_data_ folder within the parent directory of the dataset sequence for MonoRec to be compatible i.e. able to read the poses and keypoints. That is how the dataloader is implemented.**
